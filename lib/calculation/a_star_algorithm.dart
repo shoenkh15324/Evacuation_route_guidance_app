@@ -34,6 +34,12 @@ class AStarAlgorithm {
     ImageGridProcessor imageGridMarker = ImageGridProcessor();
     imageGridMarker.gridProcessing(assetPath);
     var path = computeAStarPath(userPosition);
+
+    if (imageGridMarker.pixelToGrid(Point(userPosition[0], userPosition[1])) ==
+        path[0]) {
+      path.removeAt(0);
+    }
+
     return path;
   }
 }
