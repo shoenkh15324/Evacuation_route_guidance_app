@@ -7,6 +7,7 @@ import 'package:beacon_app/calculation/grid_processing.dart';
 import 'package:beacon_app/calculation/trilateration.dart';
 import 'package:beacon_app/data_folder/beacon_data.dart';
 import 'package:beacon_app/data_folder/ble_data.dart';
+import 'package:beacon_app/tts/voice_guidance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:get/get.dart';
@@ -45,7 +46,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
   List<Coordinate> coordinateList = []; // 삼변측량 연산에 사용할 장치 리스트
   List<int> userPosition = [0, 0]; // 사용자의 위치
   List<Point<int>> optimalPath = []; // 최적 경로
-  List<double> deviceCoordinate = [];
+  List<double> deviceCoordinate = []; // 사용자 디바이스 방향 좌표
 
   double angle = 0.0;
   double angleToGo = 0.0;
@@ -69,12 +70,16 @@ class IndoorMapPageState extends State<IndoorMapPage> {
         if (optimalPath.isNotEmpty) {
           updataDirectionToGo(optimalPath, userPosition, angle);
         }
-        //print(directionToGo);
+        print(directionToGo);
 
         if (mounted) {
           setState(() {});
         }
       }
+
+      // Timer.periodic(const Duration(milliseconds: 1000), (timer) {
+      //   callTTS(directionToGo);
+      // });
     });
   }
 
@@ -112,7 +117,6 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     ImageGridProcessor imageGridMarker = ImageGridProcessor();
 
     // 3개 이상의 비콘 좌표가 있어야 Trilateration 가능
-
     List<int> position = trilateration.trilaterationMethod(coordinateList);
 
     // 계산된 위치가 도면 이미지의 범위를 넘지 않도록 조정
@@ -130,10 +134,6 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     }
 
     userPosition = position;
-
-    // if (mounted) {
-    //   setState(() {});
-    // }
   }
 
   // 최적 경로를 업데이트하는 메서드
@@ -164,7 +164,6 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     FlutterCompass.events?.listen((CompassEvent event) {
       if (event.heading != null) {
         angle = event.heading!;
-        //angle = -angle;
         //print(angle);
       }
     });
@@ -174,10 +173,19 @@ class IndoorMapPageState extends State<IndoorMapPage> {
       List<Point<int>> path, List<int> userPosition, double angle) {
     FindDirectionToGo findDirectionToGo = FindDirectionToGo();
 
-    double psi =
-        findDirectionToGo.findDirectionToGo(userPosition, path[0], angle);
+    List<double> device =
+        findDirectionToGo.findDeviceDirection(userPosition, angle);
+    deviceCoordinate = device;
+    double psi = findDirectionToGo.findPsi(device, path[0], userPosition);
+    print('psi: $psi');
 
-    if (userPosition[0] < path[0].x) {
+    // 회전 방향 판단을 위해 외적 계산
+    double crossProduct =
+        (userPosition[0] - device[0]) * (userPosition[1] - path[0].y) -
+            (userPosition[1] - device[1]) * (userPosition[0] - path[0].x);
+
+    String rotationDirection;
+    if (crossProduct > 0) {
       // CW
       if (psi >= 0 && psi < 15) directionToGo = '12시 방향';
       if (psi >= 15 && psi < 45) directionToGo = '1시 방향';
@@ -186,7 +194,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
       if (psi >= 105 && psi < 135) directionToGo = '4시 방향';
       if (psi >= 135 && psi < 165) directionToGo = '5시 방향';
       if (psi >= 165 && psi < 180) directionToGo = '6시 방향';
-    } else if (userPosition[0] > path[0].x) {
+    } else if (crossProduct < 0) {
       // CCW
       if (psi >= 0 && psi < 15) directionToGo = '12시 방향';
       if (psi >= 15 && psi < 45) directionToGo = '11시 방향';
@@ -195,6 +203,16 @@ class IndoorMapPageState extends State<IndoorMapPage> {
       if (psi >= 105 && psi < 135) directionToGo = '8시 방향';
       if (psi >= 135 && psi < 165) directionToGo = '7시 방향';
       if (psi >= 165 && psi < 180) directionToGo = '6시 방향';
+    } else {
+      rotationDirection = "직선";
+    }
+  }
+
+  void callTTS(String text) {
+    VoiceGuidance voiceGuidance = VoiceGuidance();
+
+    if (text.isNotEmpty) {
+      voiceGuidance.speak(text);
     }
   }
 
@@ -210,9 +228,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
                 Image.asset(
                   'assets/images/6th_floor.png',
                   fit: BoxFit.cover,
-                  //height: MediaQuery.of(context).size.height,
                 ),
-
                 // 각 비콘의 위치와 RSSI를 화면에 표시
                 for (var i = 0;
                     i < bleController.rssiList.length && i < maxDevice;
@@ -267,7 +283,7 @@ class BeaconCircle extends CustomPainter {
   final int? y;
   final double? rssi;
   final String? nickname;
-  var coeffi = 1.3; //  // 반지름 확대 계수 (Default: 38)
+  var coeffi = 1.3; // 반지름 확대 계수 (Default: 38)
 
   BeaconCircle({
     required this.x,
@@ -300,10 +316,8 @@ class BeaconCircle extends CustomPainter {
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
-    // 원 그리기
-    canvas.drawCircle(center, radius * coeffi, circlePaint);
-    // 비콘 좌표에 점 그리기
-    canvas.drawPoints(PointMode.points, [center], pointPaint);
+    canvas.drawCircle(center, radius * coeffi, circlePaint); // 원 그리기
+    canvas.drawPoints(PointMode.points, [center], pointPaint); // 비콘 좌표에 점 그리기
 
     // 비콘 닉네임을 텍스트로 표시
     const textStyle = TextStyle(
@@ -322,7 +336,7 @@ class BeaconCircle extends CustomPainter {
     );
 
     textPainter.layout();
-    textPainter.paint(canvas, Offset(x!.toDouble(), y!.toDouble()));
+    textPainter.paint(canvas, Offset(x!.toDouble() + 3, y!.toDouble() + 3));
     //print(distance);
   }
 
@@ -355,20 +369,27 @@ class UserPosition extends CustomPainter {
     // 사용자 위치를 나타내는 좌표 설정
     final Offset center = Offset(x!, y!);
 
+    final user = Paint()
+      ..color = Colors.red
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 10;
+
+    canvas.drawPoints(PointMode.points, [center], user);
+
     // 가상 원 스타일
     final virCircle = Paint()
-      ..color = Colors.pink
-      ..strokeWidth = 1
+      ..color = Colors.black54
+      ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
 
     // 가상 원 표시
-    canvas.drawCircle(Offset(x!, y!), 40, virCircle);
+    canvas.drawCircle(center, 35, virCircle);
 
     // 사용자 디바이스 방향 포인트 스타일
     final deviceDir = Paint()
       ..color = Colors.red
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 5;
+      ..strokeCap = StrokeCap.square
+      ..strokeWidth = 4.5;
 
     // 사용자 디바이스 방향 포인트 표시
     canvas.drawPoints(
@@ -376,13 +397,13 @@ class UserPosition extends CustomPainter {
 
     // 북쪽 방향 포인트 스타일
     final northDir = Paint()
-      ..color = Colors.lightBlue
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 5;
+      ..color = Colors.tealAccent
+      ..strokeCap = StrokeCap.square
+      ..strokeWidth = 4.5;
 
     // 북쪽 방향 표시
     canvas.drawPoints(
-        PointMode.points, [Offset(x! + 39.0, y! + 10.0)], northDir);
+        PointMode.points, [Offset(x! + 34.0, y! - 9.0)], northDir);
 
     // 사용자 위치 좌표를 텍스트로 표시
     final formattedX = x!.toDouble().toStringAsFixed(0);
@@ -390,7 +411,7 @@ class UserPosition extends CustomPainter {
 
     const textStyle = TextStyle(
       color: Colors.red,
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: FontWeight.w500,
     );
     final textSpan = TextSpan(
@@ -404,41 +425,8 @@ class UserPosition extends CustomPainter {
     );
 
     textPainter.layout();
-    textPainter.paint(canvas, Offset(x!.toDouble() - 33, y!.toDouble() + 10));
-
-    // 사용자의 위치와 방향을 나타내는 아이콘 표시
-    // canvas.save();
-    // canvas.translate(center.dx, center.dy);
-
-    // 현재 위치 아이콘 표시 (빨간색)
-    // canvas.save();
-    // canvas.rotate((pii! - 90) * (pi / 180));
-    // _drawIcon(canvas, Icons.trending_flat, 30, Colors.red);
-    // canvas.restore();
-
-    //이동할 각도에 해당하는 아이콘 표시 (파란색)
-    // canvas.save();
-    // _drawIcon(canvas, Icons.trending_flat, 30, Colors.blue);
-    // canvas.restore();
+    textPainter.paint(canvas, Offset(x!.toDouble() - 28, y!.toDouble() + 10));
   }
-
-  // void _drawIcon(Canvas canvas, IconData icon, double iconSize, Color color) {
-  //   final textPainterIcon = TextPainter(
-  //     text: TextSpan(
-  //       text: String.fromCharCode(icon.codePoint),
-  //       style: TextStyle(
-  //         fontSize: iconSize,
-  //         fontFamily: icon.fontFamily,
-  //         color: color, // 아이콘 색상 설정
-  //       ),
-  //     ),
-  //     textAlign: TextAlign.center,
-  //     textDirection: TextDirection.ltr,
-  //   );
-
-  //   textPainterIcon.layout();
-  //   textPainterIcon.paint(canvas, Offset(-iconSize / 2, -iconSize / 2));
-  // }
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) {
@@ -446,6 +434,7 @@ class UserPosition extends CustomPainter {
   }
 }
 
+//최적 경로 클래스
 class OptimalRoute extends CustomPainter {
   final List<Point<int>> path;
   final List<int> userPosition;
@@ -515,6 +504,7 @@ class OptimalRoute extends CustomPainter {
   }
 }
 
+// 도착점 클래스
 class EndPoint extends CustomPainter {
   int x;
   int y;
@@ -523,13 +513,14 @@ class EndPoint extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 도착점 스타일
     final endPoint = Paint()
       ..color = Colors.purple
       ..strokeWidth = 8.0
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawPoints(
-        PointMode.points, [Offset(x.toDouble(), y.toDouble())], endPoint);
+    canvas.drawPoints(PointMode.points, [Offset(x.toDouble(), y.toDouble())],
+        endPoint); // 도착점 그리기
   }
 
   @override
