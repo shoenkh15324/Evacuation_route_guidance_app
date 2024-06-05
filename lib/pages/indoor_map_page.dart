@@ -18,13 +18,16 @@ import 'package:get/get.dart';
     BLE 비콘을 사용하여 사용자의 위치를 실시간으로 추적하고, A* 알고리즘을 통해 최적 경로를 계산하여 화면에 표시합니다.
 
     1. BLE 비콘을 통한 위치 추적:
-      비콘 신호 강도(RSSI)를 측정하여 Trilateration 알고리즘을 사용해 사용자의 위치를 계산합니다.
+      비콘 신호 강도(RSSI)를 측정하여 삼변측량을 사용해 사용자의 위치를 계산합니다.
       
     2. 최적 경로 계산:
       A* 알고리즘을 사용하여 사용자의 현재 위치와 목적지 사이의 최적 경로를 계산합니다.
 
     3. UI 업데이트:
       실내 지도 이미지를 표시하고, 비콘 위치, 사용자 위치, 최적 경로를 화면에 그립니다.
+
+    4. 음성 안내:
+      사용자가 가야 하는 방향을 음성으로 안내합니다.
 
 */
 
@@ -41,16 +44,16 @@ class IndoorMapPageState extends State<IndoorMapPage> {
 
   int maxDevice = 3; // 최대 사용할 장치 수
 
-  Worker? rssiListListener; // rssiList 리스너
+  Worker? rssiListListener; // rssiList 리스너 (GetX 라이브러리)
 
   List<Coordinate> coordinateList = []; // 삼변측량 연산에 사용할 장치 리스트
   List<int> userPosition = [0, 0]; // 사용자의 위치
   List<Point<int>> optimalPath = []; // 최적 경로
   List<double> deviceCoordinate = []; // 사용자 디바이스 방향 좌표
 
-  double angle = 0.0;
-  double angleToGo = 0.0;
-  String directionToGo = '';
+  double angle = 0.0; // 사용자 디바이스 방향과 북쪽 방향의 사잇각.
+  double angleToGo = 0.0; // 사용자 디바이스 방향과 다음 노드 방향의 사잇각.
+  String directionToGo = ''; // 사용자가 가야 하는 방향.
 
   @override
   void initState() {
@@ -62,10 +65,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
       if (bleController.rssiList.length >= 3) {
         updateCoordinateList();
         updateUserPositionList();
-        //print('coor: $coordinateList');
-        //print('user: $userPosition');
         updateOptimalPath(userPosition);
-        //print(optimalPath);
         updateAngle();
         if (optimalPath.isNotEmpty) {
           updataDirectionToGo(optimalPath, userPosition, angle);
@@ -160,6 +160,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     return distance;
   }
 
+  // angle 변수를 업데이트하는 메서드
   void updateAngle() {
     FlutterCompass.events?.listen((CompassEvent event) {
       if (event.heading != null) {
@@ -169,22 +170,22 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     });
   }
 
+  // directionToGo 변수를 업데이트하는 메서드
   void updataDirectionToGo(
       List<Point<int>> path, List<int> userPosition, double angle) {
     FindDirectionToGo findDirectionToGo = FindDirectionToGo();
 
     List<double> device =
         findDirectionToGo.findDeviceDirection(userPosition, angle);
-    deviceCoordinate = device;
     double psi = findDirectionToGo.findPsi(device, path[0], userPosition);
-    print('psi: $psi');
+
+    deviceCoordinate = device;
 
     // 회전 방향 판단을 위해 외적 계산
     double crossProduct =
         (userPosition[0] - device[0]) * (userPosition[1] - path[0].y) -
             (userPosition[1] - device[1]) * (userPosition[0] - path[0].x);
 
-    String rotationDirection;
     if (crossProduct > 0) {
       // CW
       if (psi >= 0 && psi < 15) directionToGo = '12시 방향';
@@ -203,11 +204,10 @@ class IndoorMapPageState extends State<IndoorMapPage> {
       if (psi >= 105 && psi < 135) directionToGo = '8시 방향';
       if (psi >= 135 && psi < 165) directionToGo = '7시 방향';
       if (psi >= 165 && psi < 180) directionToGo = '6시 방향';
-    } else {
-      rotationDirection = "직선";
     }
   }
 
+  // 음성 안내 메서드
   void callTTS(String text) {
     VoiceGuidance voiceGuidance = VoiceGuidance();
 
@@ -216,6 +216,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     }
   }
 
+  // UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -337,7 +338,6 @@ class BeaconCircle extends CustomPainter {
 
     textPainter.layout();
     textPainter.paint(canvas, Offset(x!.toDouble() + 3, y!.toDouble() + 3));
-    //print(distance);
   }
 
   @override
@@ -369,20 +369,22 @@ class UserPosition extends CustomPainter {
     // 사용자 위치를 나타내는 좌표 설정
     final Offset center = Offset(x!, y!);
 
+    // 사용자 위치 포인트 스타일
     final user = Paint()
       ..color = Colors.red
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 10;
 
+    // 사용자 위치 그리기
     canvas.drawPoints(PointMode.points, [center], user);
 
-    // 가상 원 스타일
+    // 방향 궤도 스타일
     final virCircle = Paint()
       ..color = Colors.black54
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
 
-    // 가상 원 표시
+    // 방향 궤도 표시
     canvas.drawCircle(center, 35, virCircle);
 
     // 사용자 디바이스 방향 포인트 스타일
@@ -456,17 +458,17 @@ class OptimalRoute extends CustomPainter {
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
+    // 도착지 포인트 스타일
     final point = Paint()
       ..color = Colors.purple
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 10;
 
+    // 최적 경로의 노드 포인트 스타일
     final nodePoint = Paint()
       ..color = Colors.yellow
       ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round;
-
-    //print(path);
 
     // 사용자 위치에서 경로의 첫 지점까지 선을 그림
     canvas.drawLine(
@@ -496,31 +498,6 @@ class OptimalRoute extends CustomPainter {
             [Offset(p1.x.toDouble(), p1.y.toDouble())], nodePoint);
       }
     }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
-  }
-}
-
-// 도착점 클래스
-class EndPoint extends CustomPainter {
-  int x;
-  int y;
-
-  EndPoint({required this.x, required this.y});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 도착점 스타일
-    final endPoint = Paint()
-      ..color = Colors.purple
-      ..strokeWidth = 8.0
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawPoints(PointMode.points, [Offset(x.toDouble(), y.toDouble())],
-        endPoint); // 도착점 그리기
   }
 
   @override

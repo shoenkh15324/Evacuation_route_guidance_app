@@ -13,7 +13,7 @@ class VoiceGuidance {
       await tts.setPitch(1.0); // 말하는 톤 조절
       await tts
           .setVoice({"name": "ko-kr-x-ism-local", "locale": "ko-KR"}); // 음성 선택
-      await tts.speak(text);
+      await tts.speak(text); // TTS 출력
     }
   }
 }
