@@ -4,7 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
 
 class ImageGridProcessor {
-  int imageWidth = 850; // 이미지의 가로 길이
+  int imageWidth = 830; // 이미지의 가로 길이
   int imageHeight = 500; // 이미지의 세로 길이
   int gridWidth = 10; // 그리드의 가로 길이
   int gridHeight = 10; // 그리드의 세로 길이

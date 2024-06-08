@@ -1,5 +1,4 @@
 import "dart:math";
-import "package:beacon_app/data_folder/beacon_data.dart";
 import "package:beacon_app/data_folder/ble_data.dart";
 import "package:get/get.dart";
 import "package:matrix2d/matrix2d.dart";
@@ -8,11 +7,13 @@ class Coordinate {
   double centerX;
   double centerY;
   double radius;
+  String nickname;
 
   Coordinate({
     required this.centerX,
     required this.centerY,
     required this.radius,
+    required this.nickname,
   });
 }
 
@@ -20,7 +21,6 @@ class Trilateration {
   Trilateration();
 
   final bleController = Get.put(BleController());
-  final beaconController = Get.put(BeaconController());
 
   // 삼변측량 기법을 사용하여 위치를 계산하는 메서드
   List<int> trilaterationMethod(List<Coordinate> coordinateList) {
@@ -63,8 +63,18 @@ class Trilateration {
 
     // 계산된 위치를 정수 리스트로 반환
     List<int> position = [];
-    position.add(tempPosition[0][0].toInt());
-    position.add(tempPosition[1][0].toInt());
+
+    if (tempPosition[0][0].isFinite) {
+      position.add(tempPosition[0][0].toInt());
+    } else {
+      position.add(0);
+    }
+
+    if (tempPosition[1][0].isFinite) {
+      position.add(tempPosition[1][0].toInt());
+    } else {
+      position.add(0);
+    }
 
     return position;
   }

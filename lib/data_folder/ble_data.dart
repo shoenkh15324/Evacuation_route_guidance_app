@@ -2,7 +2,7 @@
 
 import 'dart:async';
 
-import 'package:beacon_app/data_folder/beacon_data.dart';
+import 'package:beacon_app/data_folder/database_control.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 
@@ -36,37 +36,32 @@ import 'package:get/get.dart';
 
 // GetX 라이브러리를 통해 BLE 기능을 관리하는 클래스
 class BleController extends GetxController {
-  // BLE 스캔 결과를 구독하는 Subscription
-  //StreamSubscription<List<ScanResult>>? _scanSubscription;
+  // 스캔 상태 플래그
+  final isScanning = RxBool(false);
 
-  final isScanning = RxBool(false); // 스캔 상태 플래그
-  RxList<ScanResult> scanResultList = RxList<ScanResult>([]); // BLE 기기 스캔 결과
-  final rssiList = RxList<Map<String, dynamic>>([]); // RSSI 값 목록
-  final platformNameList = RxList<Map<String, String>>([]); // 기기명 목록
+  // 모든 BLE 기기 스캔 결과 리스트
+  RxList<ScanResult> scanResultList = RxList<ScanResult>([]);
 
-  final int windowSize = 10; // 이동 평균 윈도우 크기
-  Map<String, List<int>> rssiHistory = {}; // 각 MAC 주소에 대한 RSSI 히스토리
+  // RSSI 리스트
+  RxList<Map<String, dynamic>> rssiList = RxList<Map<String, dynamic>>([]);
 
-  /* 스캔할 기기의 MAC 주소 리스트 */
-  RxList<String> beaconList = RxList<String>([
-    'C8:0F:10:B3:5D:D5', // TEST1
-    '54:44:A3:EB:E7:E1', // TEST2
-    'E0:9D:13:86:A9:63', // TEST3
-    'C4:F3:12:51:AE:21', // BEACON1
-    'BC:6A:29:C3:44:E2', // BEACON2
-    '34:15:13:88:8A:60', // BEACON3
-    'D4:36:39:6F:BA:D5', // BEACON4
-    'F8:30:02:4A:E4:5F', // BEACON5
-  ]);
+  // 기기 등록 상태 리스트
+  RxList<Map<String, dynamic>> enrolledState = RxList<Map<String, bool>>([]);
 
-  // scanResultList의 변경 사항을 감지하고 변경될 때마다 updateLists를 호출.
+  // 각 기기의 이전 RSSI 값을 저장하는 Map
+  Map<String, List<int>> previousRssiValues = {};
+
+  // 이동 평균 필터의 윈도우 크기
+  final int windowSize = 5;
+
+  // 스파이크를 감지하는 임계값
+  int spikeThreshold = 15;
+
+  // scanResultList의 변경 사항을 감지.
   BleController() {
     scanResultList.listen((_) {
-      updateLists(scanResultList);
+      updateLists();
     });
-    // platformNameList.listen((_) {
-    //   print(platformNameList);
-    // });
   }
 
   // BLE 스캔 상태를 토글
@@ -77,7 +72,6 @@ class BleController extends GetxController {
       FlutterBluePlus.startScan(
         androidScanMode: AndroidScanMode.lowLatency, // 안드로이드에서 저지연 모드로 스캔
         continuousUpdates: true, // 연속 업데이트 활성화
-        withRemoteIds: beaconList, // 지정된 비콘만 포함하도록 스캔 결과 필터링
       );
       bleScan();
     } else {
@@ -92,83 +86,84 @@ class BleController extends GetxController {
     });
   }
 
-  // 스캔 결과를 업데이트하는 함수
-  void updateLists(List<ScanResult> results) {
-    try {
-      List<Map<String, dynamic>> tempRssiList = [];
-      List<Map<String, String>> tempPlatformNameList = [];
-
-      for (var result in results) {
-        final macAddress = result.device.remoteId.toString();
-        final rssi = result.rssi;
-        final platformName = result.device.platformName;
-
-        // RSSI 히스토리 업데이트
-        if (!rssiHistory.containsKey(macAddress)) {
-          rssiHistory[macAddress] = [];
-        }
-        rssiHistory[macAddress]!.add(rssi);
-        if (rssiHistory[macAddress]!.length > windowSize) {
-          rssiHistory[macAddress]!.removeAt(0);
-        }
-
-        // 이동 평균 계산
-        final avgRssi = rssiHistory[macAddress]!.reduce((a, b) => a + b) ~/
-            rssiHistory[macAddress]!.length;
-
-        Map<String, dynamic> tempRssiMap = {
-          'macAddress': macAddress,
-          'rssi': avgRssi,
-        };
-        Map<String, String> tempPlatformNameMap = {
-          'macAddress': macAddress,
-          'platformname': platformName,
-        };
-
-        tempRssiList.add(tempRssiMap);
-        tempPlatformNameList.add(tempPlatformNameMap);
+  // MAC에 해당하는 RSSI 값을 scanResultList에서 가져오는 함수
+  int getRssi(String mac) {
+    for (var item in scanResultList) {
+      if (item.device.remoteId.str == mac) {
+        return item.rssi;
       }
-      rssiList.value = tempRssiList;
-      platformNameList.value = tempPlatformNameList;
-
-      rssiList.sort((a, b) => b['rssi'].compareTo(a['rssi']));
-    } catch (e) {
-      //print("Error in updataList: $e");
     }
+    return 0;
   }
 
-  // beaconList를 업데이트하는 함수
-  void updateBeaconList() {
-    try {
-      final beaconController = Get.put(BeaconController());
-      RxList<String> tempList = RxList<String>([]);
-      for (var data in beaconController.beaconDataList) {
-        String mac = data[0];
-        tempList.add(mac);
-      }
-      beaconList = tempList;
-    } catch (e) {
-      //print("Error in updateBeaconList: $e");
-    }
-  }
+  // 이동 평균 필터를 적용한 RSSI 값을 가져오는 함수
+  int getFilteredRssi(String mac) {
+    int rssi = getRssi(mac);
 
-  // MAC 주소에 해당하는 RSSI 값을 가져오는 함수
-  dynamic getRssi(String mac) {
-    for (var item in rssiList) {
-      if (item['macAddress'] == mac) {
-        return item['rssi'].toString();
+    // previousRssiValues맵에 해당 MAC 주소가 없으면, 빈 리스트를 초기화하여 추가.
+    if (!previousRssiValues.containsKey(mac)) {
+      previousRssiValues[mac] = [];
+    }
+
+    // previousRssiValues 맵에서 해당 MAC 주소에 대한 리스트를 가져옴.
+    List<int> rssiValues = previousRssiValues[mac]!;
+
+    // 스파이크를 감지하는 로직
+    if (rssiValues.length > windowSize) {
+      int lastRssi = rssiValues.last;
+      if ((rssi - lastRssi).abs() > spikeThreshold) {
+        // 스파이크로 간주하여 현재 값을 무시하고 이전 값을 사용
+        rssi = lastRssi;
       }
     }
-    return '0';
+
+    rssiValues.add(rssi);
+
+    if (rssiValues.length > windowSize) {
+      rssiValues.removeAt(0);
+    }
+
+    int sum = rssiValues.reduce((a, b) => a + b);
+    return (sum / rssiValues.length).round();
   }
 
   // MAC 주소에 해당하는 기기 이름을 가져오는 함수
   String getPlatformName(String mac) {
-    for (var item in platformNameList) {
-      if (item['macAddress'] == mac) {
-        return item['platformname'].toString();
+    for (var item in scanResultList) {
+      if (item.device.remoteId.str == mac) {
+        return item.device.platformName;
       }
     }
     return "Unknown";
+  }
+
+  // 각 리스트를 업데이트하는 메서드
+  Future<void> updateLists() async {
+    DatabaseHelper dhHelper = DatabaseHelper.instance;
+
+    List<Map<String, dynamic>> beacon = await dhHelper.getAllBeaconData();
+
+    RxList<Map<String, dynamic>> tempRssiList =
+        RxList<Map<String, dynamic>>([]);
+    RxList<Map<String, dynamic>> tempEnrollList =
+        RxList<Map<String, dynamic>>([]);
+
+    for (int i = 0; i < beacon.length; i++) {
+      String mac = beacon[i]['mac'];
+
+      int rssi = getFilteredRssi(mac);
+      bool state = true;
+
+      Map<String, dynamic> tempRssiMap = {'mac': mac, 'rssi': rssi};
+      Map<String, dynamic> tempEnrollMap = {'mac': mac, 'state': state};
+
+      tempRssiList.add(tempRssiMap);
+      tempEnrollList.add(tempEnrollMap);
+    }
+
+    tempRssiList.sort((a, b) => b['rssi'].compareTo(a['rssi']));
+
+    rssiList = tempRssiList;
+    enrolledState = tempEnrollList;
   }
 }

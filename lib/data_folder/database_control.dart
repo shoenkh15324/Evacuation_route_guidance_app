@@ -44,7 +44,7 @@ class BeaconData {
     required this.nickname,
   });
 
-  // BeaconData 객체를 Map으로 변환하는 함수
+  // BeaconData를 Map 객체로 변환하는 함수
   Map<String, dynamic> toMap() {
     return {
       'mac': mac,
@@ -55,6 +55,19 @@ class BeaconData {
       'z': z,
       'nickname': nickname,
     };
+  }
+
+  // Map 객체를 BeaconData로 변환하는 함수
+  factory BeaconData.fromMap(Map<String, dynamic> map) {
+    return BeaconData(
+      mac: map['mac'],
+      beaconId: map['beaconId'],
+      floor: map['floor'],
+      x: map['x'],
+      y: map['y'],
+      z: map['z'],
+      nickname: map['nickname'],
+    );
   }
 }
 
@@ -123,6 +136,81 @@ class DatabaseHelper {
     );
   }
 
+  // 특정 MAC 주소의 데이터를 전체 업데이트
+  Future<int> updateWholeBeaconDataByMac(
+      String mac, Map<String, dynamic> updates) async {
+    final db = await database;
+    return await db.update(
+      'beaconData',
+      updates,
+      where: 'mac = ?',
+      whereArgs: [mac],
+    );
+  }
+
+  // mac주소를 받아서 해당 mac을 가진 데이터의 특정 데이터를 업데이트
+  Future<void> updateSpecificDataByMac(
+      String mac, String arg, dynamic value) async {
+    final dbHelper = DatabaseHelper.instance;
+    final beaconData = await dbHelper.getBeaconData(mac);
+
+    if (beaconData != null) {
+      final Map<String, dynamic> updates = {};
+      switch (arg) {
+        case 'id':
+          updates['beaconId'] = value;
+          break;
+        case 'floor':
+          updates['floor'] = value;
+          break;
+        case 'x':
+          updates['x'] = value;
+          break;
+        case 'y':
+          updates['y'] = value;
+          break;
+        case 'z':
+          updates['z'] = value;
+          break;
+        case 'nickname':
+          updates['nickname'] = value;
+          break;
+        default:
+          throw ArgumentError('Invalid argument');
+      }
+
+      await dbHelper.updateWholeBeaconDataByMac(mac, updates);
+    }
+  }
+
+  // mac주소로 데이터 가져오기
+  Future<BeaconData?> getBeaconData(String mac) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'beaconData',
+      where: 'mac = ?',
+      whereArgs: [mac],
+    );
+
+    if (maps.isNotEmpty) {
+      return BeaconData.fromMap(maps.first);
+    } else {
+      return null;
+    }
+  }
+
+  // 특정 데이터 가져오기
+  Future<dynamic> getSomethingInBeaconData(String mac, String arg) async {
+    final beaconData = await getBeaconData(mac);
+
+    if (arg == 'id') return beaconData?.beaconId;
+    if (arg == 'floor') return beaconData?.floor;
+    if (arg == 'x') return beaconData?.x;
+    if (arg == 'y') return beaconData?.y;
+    if (arg == 'z') return beaconData?.z;
+    if (arg == 'nickname') return beaconData?.nickname;
+  }
+
   // 데이터 삭제
   Future<int> deleteBeaconData(String mac) async {
     final db = await database;
@@ -139,40 +227,34 @@ class DatabaseHelper {
     await db.delete('beaconData');
   }
 
+  // 데이터베이스의 데이터 개수 반환.
+  Future<int> getBeaconDataCount() async {
+    final db = await database;
+    return Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM beaconData')) ??
+        0;
+  }
+
+  // mac주소를 가지고 데이터의 인덱스를 반환하는 메서드
+  Future<int?> getIndexByMac(String mac) async {
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'beaconData',
+      columns: ['rowid'],
+      where: 'mac = ?',
+      whereArgs: [mac],
+    );
+
+    if (result.isNotEmpty) {
+      return result.first['rowid'] as int?;
+    } else {
+      return -1;
+    }
+  }
+
   // 모든 비콘 데이터 가져오기
   Future<List<Map<String, dynamic>>> getAllBeaconData() async {
     final db = await database;
     return await db.query('beaconData');
-  }
-
-  // 데이터베이스에 데이터 추가 함수(다른 파일에서 사용하는 용도)
-  Future<void> addDataToDatabase(List<dynamic> newDevice) async {
-    // 데이터베이스 인스턴스 생성
-    final dbHelper = DatabaseHelper.instance;
-
-    // 데이터 유효성 검사 및 타입 변환
-    if (newDevice.length == 7 &&
-        newDevice.every((element) => element is String || element is int)) {
-      final mac = newDevice[0] as String;
-      final beaconId = newDevice[1] as String;
-      final floor = newDevice[2] as int;
-      final x = newDevice[3] as int;
-      final y = newDevice[4] as int;
-      final z = newDevice[5] as int;
-      final nickname = newDevice[6] as String;
-
-      final beacon = BeaconData(
-        mac: mac,
-        beaconId: beaconId,
-        floor: floor,
-        x: x,
-        y: y,
-        z: z,
-        nickname: nickname,
-      );
-
-      // 데이터 추가
-      await dbHelper.insertBeaconData(beacon);
-    }
   }
 }

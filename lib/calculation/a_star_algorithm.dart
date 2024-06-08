@@ -17,21 +17,27 @@ class AStarAlgorithm {
   List<Point<int>> computeAStarPath(List<int> userPositon) {
     ImageGridProcessor imageGridMarker = ImageGridProcessor();
 
-    Iterable<Point<int>> optimalRoute = AStar(
-      rows: imageGridMarker.imageHeight ~/ imageGridMarker.gridHeight,
-      columns: imageGridMarker.imageWidth ~/ imageGridMarker.gridWidth,
-      start: imageGridMarker.pixelToGrid(listToPoint(userPositon)),
-      //start: imageGridMarker.pixelToGrid(const Point(380, 460)),
-      end: imageGridMarker.pixelToGrid(const Point(550, 255)),
-      barriers: imageGridMarker.barriers,
-    ).findThePath();
+    Iterable<Point<int>> optimalRoute;
 
-    return optimalRoute.toList();
+    try {
+      optimalRoute = AStar(
+        rows: imageGridMarker.imageHeight ~/ imageGridMarker.gridHeight,
+        columns: imageGridMarker.imageWidth ~/ imageGridMarker.gridWidth,
+        start: imageGridMarker.pixelToGrid(listToPoint(userPositon)),
+        //start: imageGridMarker.pixelToGrid(const Point(380, 460)),
+        end: imageGridMarker.pixelToGrid(const Point(550, 255)),
+        barriers: imageGridMarker.barriers,
+      ).findThePath();
+      return optimalRoute.toList();
+    } catch (error) {
+      return [];
+    }
   }
 
   // 최적 경로를 찾는 메서드
   List<Point<int>> findOptimalRoute(List<int> userPosition, String assetPath) {
     ImageGridProcessor imageGridMarker = ImageGridProcessor();
+
     imageGridMarker.gridProcessing(assetPath);
     var path = computeAStarPath(userPosition);
 

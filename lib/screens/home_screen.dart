@@ -1,9 +1,9 @@
 // ignore_for_file: invalid_use_of_protected_member
 
-import 'package:beacon_app/data_folder/beacon_data.dart';
 import 'package:beacon_app/data_folder/ble_data.dart';
 import 'package:beacon_app/data_folder/database_control.dart';
 import 'package:beacon_app/pages/indoor_map_page.dart';
+import 'package:beacon_app/pages/device_page.dart';
 import 'package:beacon_app/pages/scan_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinbox/flutter_spinbox.dart';
@@ -55,7 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // BleController, BeaconController를 이 파일에서 사용할 수 있도록 등록.
   final bleController = Get.put(BleController());
-  final beaconController = Get.put(BeaconController());
 
   // 닉네임, ID, MAC주소 TextField 컨트롤러를 생성. (TextField 위젯의 값을 입력 받는데 필요)
   final TextEditingController addNicknameController = TextEditingController();
@@ -66,10 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
   DatabaseHelper dbHelper = DatabaseHelper.instance;
 
   // 현재 페이지 번호 저장.
-  int _selectedScreen = 0;
+  int _selectedScreen = 1;
 
   // 기기를 등록할 때 사용하는 임시 변수들.
-  String tempNickname = 'Nickname', tempID = 'ID', tempMAC = 'MAC';
+  String tempNickname = 'Nickname', tempID = 'ID', tempMAC = 'XX:XX:XX:XX:XX:XX';
   int tempFloor = 0, tempX = 0, tempY = 0, tempZ = 0;
 
   // 사용이 끝난 리소스 해제.
@@ -92,22 +91,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 기기 등록 버튼을 눌렀을 때의 이벤트 핸들러.
   void addButtonPressed(BuildContext context) {
-    // 임시 리스트 생성.
-    RxList<dynamic> tempList = RxList<dynamic>([
-      tempMAC,
-      tempID,
-      tempFloor,
-      tempX,
-      tempY,
-      tempZ,
-      tempNickname,
-    ]);
+    DatabaseHelper dbHelper = DatabaseHelper.instance;
 
-    // beaconDataList에 추가.
-    beaconController.beaconDataList.add(tempList);
+    BeaconData tempData = BeaconData(
+      mac: tempMAC,
+      beaconId: tempID,
+      floor: tempFloor,
+      x: tempX,
+      y: tempY,
+      z: tempZ,
+      nickname: tempNickname,
+    );
 
-    // beaconList에 추가.
-    bleController.beaconList.add(tempList[0]);
+    dbHelper.insertBeaconData(tempData);
 
     // 다이얼로그 닫기.
     Navigator.pop(context);
@@ -270,12 +266,17 @@ class _HomeScreenState extends State<HomeScreen> {
         allowImplicitScrolling: false,
         onPageChanged: pageChange,
         children: const [
-          ScanPage(), // 스캔 페이지.
+          ScanPage(),
+          DevicePage(), // 디바이스 페이지
           IndoorMapPage(), // 실내 지도 페이지.
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: "Scan",
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bluetooth),
             label: "BLE Device",
@@ -306,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: const Icon(Icons.add),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      //floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 }
