@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
 
+// TODO: 그리드 분할 알고리즘 오류있는지 확인해보기.
+
 class ImageGridProcessor {
   int imageWidth = 830; // 이미지의 가로 길이
   int imageHeight = 500; // 이미지의 세로 길이
@@ -44,7 +46,7 @@ class ImageGridProcessor {
               num g = pixel.g;
               num b = pixel.b;
 
-              if (r < 128 && g < 128 && b < 128) {
+              if (r != 255 && g != 255 && b != 255) {
                 isMarked[j ~/ gridHeight][i ~/ gridWidth] = 1;
                 isBlackFound = true;
                 break;

@@ -8,12 +8,14 @@ class Coordinate {
   double centerY;
   double radius;
   String nickname;
+  int floor;
 
   Coordinate({
     required this.centerX,
     required this.centerY,
     required this.radius,
     required this.nickname,
+    required this.floor,
   });
 }
 

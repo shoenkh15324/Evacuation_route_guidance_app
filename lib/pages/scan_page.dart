@@ -68,8 +68,8 @@ class _ScanPageState extends State<ScanPage> {
     int index = -1;
     int state = 0;
 
-    for (var i = 0; i < bleController.enrolledState.length; i++) {
-      if (mac == bleController.enrolledState[i]['mac']) {
+    for (var i = 0; i < bleController.beaconList.length; i++) {
+      if (mac == bleController.beaconList[i]['mac']) {
         index = i;
       }
     }

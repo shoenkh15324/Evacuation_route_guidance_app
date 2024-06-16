@@ -42,11 +42,8 @@ class BleController extends GetxController {
   // 모든 BLE 기기 스캔 결과 리스트
   RxList<ScanResult> scanResultList = RxList<ScanResult>([]);
 
-  // RSSI 리스트
-  RxList<Map<String, dynamic>> rssiList = RxList<Map<String, dynamic>>([]);
-
-  // 기기 등록 상태 리스트
-  RxList<Map<String, dynamic>> enrolledState = RxList<Map<String, bool>>([]);
+  // 등록된 비콘의 여러 정보들을 담고있는 리스트
+  RxList<Map<String, dynamic>> beaconList = RxList<Map<String, dynamic>>([]);
 
   // 각 기기의 이전 RSSI 값을 저장하는 Map
   Map<String, List<int>> previousRssiValues = {};
@@ -55,12 +52,13 @@ class BleController extends GetxController {
   final int windowSize = 5;
 
   // 스파이크를 감지하는 임계값
-  int spikeThreshold = 15;
+  int spikeThreshold = 10;
 
   // scanResultList의 변경 사항을 감지.
   BleController() {
     scanResultList.listen((_) {
       updateLists();
+      //print(beaconList);
     });
   }
 
@@ -70,7 +68,7 @@ class BleController extends GetxController {
 
     if (isScanning.value) {
       FlutterBluePlus.startScan(
-        androidScanMode: AndroidScanMode.lowLatency, // 안드로이드에서 저지연 모드로 스캔
+        androidScanMode: AndroidScanMode.balanced, // 안드로이드에서 저지연 모드로 스캔
         continuousUpdates: true, // 연속 업데이트 활성화
       );
       bleScan();
@@ -139,13 +137,11 @@ class BleController extends GetxController {
 
   // 각 리스트를 업데이트하는 메서드
   Future<void> updateLists() async {
-    DatabaseHelper dhHelper = DatabaseHelper.instance;
+    DatabaseHelper dbHelper = DatabaseHelper.instance;
 
-    List<Map<String, dynamic>> beacon = await dhHelper.getAllBeaconData();
+    List<Map<String, dynamic>> beacon = await dbHelper.getAllBeaconData();
 
-    RxList<Map<String, dynamic>> tempRssiList =
-        RxList<Map<String, dynamic>>([]);
-    RxList<Map<String, dynamic>> tempEnrollList =
+    RxList<Map<String, dynamic>> tempBeaconList =
         RxList<Map<String, dynamic>>([]);
 
     for (int i = 0; i < beacon.length; i++) {
@@ -153,17 +149,21 @@ class BleController extends GetxController {
 
       int rssi = getFilteredRssi(mac);
       bool state = true;
+      int floor = beacon[i]['floor'];
 
-      Map<String, dynamic> tempRssiMap = {'mac': mac, 'rssi': rssi};
-      Map<String, dynamic> tempEnrollMap = {'mac': mac, 'state': state};
+      Map<String, dynamic> tempMap = {
+        'mac': mac,
+        'info': {'rssi': rssi, 'state': state, 'floor': floor}
+      };
 
-      tempRssiList.add(tempRssiMap);
-      tempEnrollList.add(tempEnrollMap);
+      if (rssi != 0) {
+        tempBeaconList.add(tempMap);
+      }
     }
 
-    tempRssiList.sort((a, b) => b['rssi'].compareTo(a['rssi']));
+    tempBeaconList
+        .sort((a, b) => b['info']['rssi'].compareTo(a['info']['rssi']));
 
-    rssiList = tempRssiList;
-    enrolledState = tempEnrollList;
+    beaconList = tempBeaconList;
   }
 }

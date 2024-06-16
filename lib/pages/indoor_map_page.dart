@@ -8,6 +8,7 @@ import 'package:beacon_app/calculation/grid_processing.dart';
 import 'package:beacon_app/calculation/trilateration.dart';
 import 'package:beacon_app/data_folder/ble_data.dart';
 import 'package:beacon_app/data_folder/database_control.dart';
+import 'package:beacon_app/data_folder/floor_info.dart';
 import 'package:beacon_app/tts/voice_guidance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
@@ -32,8 +33,6 @@ import 'package:get/get.dart';
 
 */
 
-// TODO: 오류 및 버그 테스트
-
 class IndoorMapPage extends StatefulWidget {
   const IndoorMapPage({super.key});
 
@@ -44,6 +43,14 @@ class IndoorMapPage extends StatefulWidget {
 class IndoorMapPageState extends State<IndoorMapPage> {
   final bleController = Get.put(BleController());
 
+  int currentfloor = 1;
+
+  // 현재 층의 정보를 담고있는 리스트
+  List<dynamic> floorInfoList = [
+    'assets/images/6th_floor.png',
+    [const Point<int>(553, 253), const Point<int>(184, 10)]
+  ];
+
   late Timer _timer1; // 사용자 위치 및 경로 탐색 타이머
   late Timer _timer2; // 음성 안내 타이머
   int ms1 = 100; // 사용자 위치 및 경로 탐색 주기
@@ -51,10 +58,10 @@ class IndoorMapPageState extends State<IndoorMapPage> {
 
   int maxDevice = 3; // 최대 사용할 장치 수
 
-  Worker? rssiListListener; // rssiList 리스너 (GetX 라이브러리)
-
+  List<dynamic> topDevices = [];
   List<Coordinate> coordinateList = []; // 삼변측량 연산에 사용할 장치 리스트
   List<int> userPosition = [0, 0]; // 사용자의 위치
+  List<int> endPoint = [0, 0];
   List<Point<int>> optimalPath = []; // 최적 경로
   List<double> deviceCoordinate = [0, 0]; // 사용자 디바이스 방향 좌표
 
@@ -69,6 +76,8 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     // 사용자 위치 및 경로 탐색 수행 부분
     _timer1 = Timer.periodic(Duration(milliseconds: ms1), (timer) {
       updateCoordinateList();
+      updateCurrentFloor();
+      print(currentfloor);
       if (coordinateList.length >= 3) {
         updateUserPositionList();
         updateOptimalPath(userPosition);
@@ -92,11 +101,50 @@ class IndoorMapPageState extends State<IndoorMapPage> {
 
   @override
   void dispose() {
-    // 페이지 종료 시 리스너 및 subscription 해제
-    rssiListListener?.dispose();
     _timer1.cancel();
     _timer2.cancel();
     super.dispose();
+  }
+
+  void updateCurrentFloor() {
+    FloorInfo floorInfo = FloorInfo();
+
+    List countFloor = List.filled(99, 0);
+
+    for (int i = 0; i < topDevices.length; i++) {
+      if (topDevices[i]['info']['rssi'] >= -100) {
+        countFloor[topDevices[i]['info']['floor']]++;
+      }
+    }
+
+    int max = 0;
+    int countFloorIndex = 0;
+
+    for (int i = 0; i < countFloor.length; i++) {
+      if (countFloor[i] > max && countFloor[i] != 0) {
+        max = countFloor[i];
+        countFloorIndex = i;
+      } else if (countFloor[i] == max && countFloor[i] != 0) {
+        int maxRSSI = -9999;
+
+        for (int j = 0; j < topDevices.length; j++) {
+          if (topDevices[j]['info']['floor'] == i) {
+            if (topDevices[j]['info']['rssi'] > maxRSSI) {
+              maxRSSI = topDevices[j]['info']['rssi'];
+              countFloorIndex = i;
+            }
+          }
+        }
+      }
+    }
+
+    currentfloor = countFloorIndex;
+
+    floorInfoList = floorInfo.settingFloorInfo(currentfloor);
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   // 삼변측량 연산에 사용할 장치 리스트를 업데이트하는 메서드
@@ -106,17 +154,18 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     List topList = [];
 
     // beaconDataList에서 rssi가 강한 장치의 mac주소를 maxDevice만큼 찾음.
-    for (var i = 0; i < bleController.rssiList.length; i++) {
-      if (topList.length < maxDevice) {
-        if (bleController.rssiList[i]['rssi'] != 0) {
-          topList.add(bleController.rssiList[i]);
-        }
+    for (var i = 0; i < bleController.beaconList.length; i++) {
+      if (topList.length < maxDevice &&
+          bleController.beaconList[i]['info']['rssi'] != 0) {
+        topList.add(bleController.beaconList[i]);
       }
     }
 
+    topDevices = topList;
+
     List<Coordinate> tempList = [];
 
-    for (var i = 0; i < topList.length; i++) {
+    for (var i = 0; i < topList.length && topList.isNotEmpty; i++) {
       String mac = topList[i]['mac'];
 
       BeaconData? beacon = await dbHelper.getBeaconData(mac);
@@ -127,14 +176,19 @@ class IndoorMapPageState extends State<IndoorMapPage> {
           tempList.add(Coordinate(
             centerX: beacon.x.toDouble(),
             centerY: beacon.y.toDouble(),
-            radius: bleController.rssiList[i]['rssi'].toDouble(),
+            radius: topList[i]['info']['rssi'].toDouble(),
             nickname: beacon.nickname,
+            floor: beacon.floor,
           ));
         }
       }
     }
 
     coordinateList = tempList;
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   // 사용자 위치를 업데이트하는 메서드
@@ -168,9 +222,25 @@ class IndoorMapPageState extends State<IndoorMapPage> {
 
     // 사용자 위치가 유효한 경우에만 최적 경로 계산
     if (userPosition[0] != 0 && userPosition[1] != 0) {
-      List<Point<int>> temp = astarAgorithm.findOptimalRoute(
-          userPosition, 'assets/images/6th_floor.png');
-      optimalPath = temp;
+      List<List<Point<int>>> paths = [];
+      int min = 9999999;
+      int shortestPathIndex = 0;
+
+      for (int i = 0; i < floorInfoList[1].length; i++) {
+        List<Point<int>> path = astarAgorithm.findOptimalRoute(
+            userPosition, floorInfoList[1][i], floorInfoList[0]);
+        paths.add(path);
+
+        if (path.length < min) {
+          shortestPathIndex = i;
+        }
+      }
+
+      optimalPath = paths[shortestPathIndex];
+      endPoint = [
+        floorInfoList[1][shortestPathIndex].x,
+        floorInfoList[1][shortestPathIndex].y
+      ];
     }
 
     if (mounted) {
@@ -269,21 +339,24 @@ class IndoorMapPageState extends State<IndoorMapPage> {
             child: Stack(
               children: [
                 Image.asset(
-                  'assets/images/6th_floor.png',
+                  floorInfoList[0],
                   fit: BoxFit.cover,
                 ),
-                // 각 비콘의 위치와 RSSI를 화면에 표시
-                for (var i = 0; i < coordinateList.length; i++)
-                  CustomPaint(
-                    painter: BeaconCircle(
-                      x: coordinateList[i].centerX.toInt(),
-                      y: coordinateList[i].centerY.toInt(),
-                      // rssi: calculateDistanceFromRssi(bleController.rssiList[i]['rssi'])
-                      //     .toDouble(),
-                      rssi: bleController.rssiList[i]['rssi'].toDouble(),
-                      nickname: coordinateList[i].nickname,
+                // 각 비콘의 위치와 신호 반경을 화면에 표시
+                for (var i = 0;
+                    i < coordinateList.length && coordinateList.isNotEmpty;
+                    i++)
+                  if (coordinateList[i].floor == currentfloor)
+                    CustomPaint(
+                      painter: BeaconCircle(
+                        x: coordinateList[i].centerX.toInt(),
+                        y: coordinateList[i].centerY.toInt(),
+                        // rssi: calculateDistanceFromRssi(bleController.rssiList[i]['rssi'])
+                        //     .toDouble(),
+                        rssi: topDevices[i]['info']['rssi'].toDouble(),
+                        nickname: coordinateList[i].nickname,
+                      ),
                     ),
-                  ),
                 // 사용자 위치를 화면에 표시
                 if (coordinateList.length >= 3 && optimalPath.isNotEmpty)
                   CustomPaint(
@@ -301,7 +374,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
                   painter: OptimalRoute(
                     path: optimalPath,
                     userPosition: userPosition,
-                    endPoint: [550, 255],
+                    endPoint: endPoint,
                   ),
                 ),
               ],

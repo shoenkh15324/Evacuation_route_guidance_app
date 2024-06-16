@@ -65,10 +65,12 @@ class _HomeScreenState extends State<HomeScreen> {
   DatabaseHelper dbHelper = DatabaseHelper.instance;
 
   // 현재 페이지 번호 저장.
-  int _selectedScreen = 1;
+  int _selectedScreen = 0;
 
   // 기기를 등록할 때 사용하는 임시 변수들.
-  String tempNickname = 'Nickname', tempID = 'ID', tempMAC = 'XX:XX:XX:XX:XX:XX';
+  String tempNickname = 'Nickname',
+      tempID = 'ID',
+      tempMAC = 'XX:XX:XX:XX:XX:XX';
   int tempFloor = 0, tempX = 0, tempY = 0, tempZ = 0;
 
   // 사용이 끝난 리소스 해제.
@@ -279,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.bluetooth),
-            label: "BLE Device",
+            label: "Device",
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.map),
