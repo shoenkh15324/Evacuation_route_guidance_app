@@ -240,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 1,
         shadowColor: Colors.black,
         title: const Text(
-          'Receiver App',
+          'Capstone Project',
           style: TextStyle(
             color: Colors.white,
             fontSize: 25,
@@ -309,7 +309,6 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: const Icon(Icons.add),
       ),
-      //floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 }

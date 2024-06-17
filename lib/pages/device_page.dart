@@ -37,7 +37,7 @@ class _ScanPageState extends State<DevicePage> {
     super.initState();
     getList();
   }
-  
+
   // 상태 업데이트 메서드
   void _updateState() {
     if (mounted) {
@@ -56,50 +56,62 @@ class _ScanPageState extends State<DevicePage> {
   }
 
   // 세팅 버튼 이벤트 핸들러.
-  void settingButtonPressed(BuildContext context, String mac) {
+  void settingButtonPressed(BuildContext context, String mac) async {
     DatabaseHelper dbHelper = DatabaseHelper.instance;
 
-    if (tempID != null) {
-      dbHelper.updateSpecificDataByMac(mac, 'beaconID', tempID);
-      tempID = null;
-    }
-    if (tempFloor != null) {
-      dbHelper.updateSpecificDataByMac(mac, 'floor', tempFloor);
-      tempFloor = null;
-    }
-    if (tempX != null) {
-      dbHelper.updateSpecificDataByMac(mac, 'x', tempX);
-      tempX = null;
-    }
-    if (tempY != null) {
-      dbHelper.updateSpecificDataByMac(mac, 'y', tempY);
-      tempY = null;
-    }
-    if (tempZ != null) {
-      dbHelper.updateSpecificDataByMac(mac, 'z', tempZ);
-      tempZ = null;
-    }
-    if (tempNickname != null) {
-      dbHelper.updateSpecificDataByMac(mac, 'nickname', tempNickname);
-      tempNickname = null;
-    }
+    try {
+      await dbHelper.transaction((txn) async {
+        if (tempID != null) {
+          await dbHelper.updateSpecificDataByMac(mac, 'beaconID', tempID);
+          tempID = null;
+        }
+        if (tempFloor != null) {
+          await dbHelper.updateSpecificDataByMac(mac, 'floor', tempFloor);
+          tempFloor = null;
+        }
+        if (tempX != null) {
+          await dbHelper.updateSpecificDataByMac(mac, 'x', tempX);
+          tempX = null;
+        }
+        if (tempY != null) {
+          await dbHelper.updateSpecificDataByMac(mac, 'y', tempY);
+          tempY = null;
+        }
+        if (tempZ != null) {
+          await dbHelper.updateSpecificDataByMac(mac, 'z', tempZ);
+          tempZ = null;
+        }
+        if (tempNickname != null) {
+          await dbHelper.updateSpecificDataByMac(mac, 'nickname', tempNickname);
+          tempNickname = null;
+        }
+      });
 
-    // 다이얼로그 닫기.
-    Navigator.pop(context);
+      // 다이얼로그 닫기.
+      Navigator.pop(context);
 
-    // 상태 업데이트.
-    _updateState();
+      // 상태 업데이트.
+      _updateState();
+    } catch (e) {
+      print('Transaction failed: $e');
+    }
   }
 
   // 삭제 버튼 이벤트 핸들러
   void deleteButtonPressed(BuildContext context, String mac) async {
     DatabaseHelper dbHelper = DatabaseHelper.instance;
 
-    // 데이터 삭제
-    dbHelper.deleteBeaconData(mac);
+    try {
+      await dbHelper.transaction((txn) async {
+        // 데이터 삭제
+        await dbHelper.deleteBeaconData(mac);
+      });
 
-    // 상태 업데이트.
-    _updateState();
+      // 상태 업데이트.
+      _updateState();
+    } catch (e) {
+      print('Transaction failed: $e');
+    }
   }
 
   // 비콘 리스트 위젯

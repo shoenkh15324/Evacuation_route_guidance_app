@@ -1,19 +1,18 @@
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
-
-// TODO: 그리드 분할 알고리즘 오류있는지 확인해보기.
 
 class ImageGridProcessor {
   int imageWidth = 830; // 이미지의 가로 길이
   int imageHeight = 500; // 이미지의 세로 길이
   int gridWidth = 10; // 그리드의 가로 길이
-  int gridHeight = 10; // 그리드의 세로 길이
+  int gridHeight = 20; // 그리드의 세로 길이
 
   img.Image? background; // 불러올 이미지
   List<List<int>> markedGrid = []; // 마킹된 그리드 리스트
-  List<Point<int>> barriers = []; // 장애물 리스트
+  RxList<Point<int>> barriers = RxList<Point<int>>([]); // 장애물 리스트
 
   ImageGridProcessor();
 
@@ -63,7 +62,7 @@ class ImageGridProcessor {
 
   // 마킹된 그리드를 찾는 메서드
   void findMarkedGrid(List<List<int>> isMarked) {
-    List<Point<int>> isBlacked = [];
+    RxList<Point<int>> isBlacked = RxList<Point<int>>([]);
 
     for (var i = 0; i < isMarked.length; i++) {
       for (var j = 0; j < isMarked[i].length; j++) {
@@ -72,7 +71,6 @@ class ImageGridProcessor {
         }
       }
     }
-    //print(isBlacked);
     barriers = isBlacked;
   }
 

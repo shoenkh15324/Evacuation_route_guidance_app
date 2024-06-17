@@ -29,7 +29,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application
-        android:label="beacon_app"
+        android:label="캡스톤 프로젝트"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -69,6 +69,8 @@ class IndoorMapPageState extends State<IndoorMapPage> {
   double angleToGo = 0.0; // 사용자 디바이스 방향과 다음 노드 방향의 사잇각.
   String directionToGo = ''; // 사용자가 가야 하는 방향.
 
+  List<Point<int>> barriers = [];
+
   @override
   void initState() {
     super.initState();
@@ -77,10 +79,10 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     _timer1 = Timer.periodic(Duration(milliseconds: ms1), (timer) {
       updateCoordinateList();
       updateCurrentFloor();
-      print(currentfloor);
       if (coordinateList.length >= 3) {
         updateUserPositionList();
         updateOptimalPath(userPosition);
+        updateBarriers();
         updateAngle();
         if (optimalPath.isNotEmpty) {
           updataDirectionToGo(optimalPath, userPosition, angle);
@@ -104,6 +106,12 @@ class IndoorMapPageState extends State<IndoorMapPage> {
     _timer1.cancel();
     _timer2.cancel();
     super.dispose();
+  }
+
+  void updateBarriers() {
+    ImageGridProcessor imageGridProcessor = Get.put(ImageGridProcessor());
+    imageGridProcessor.gridProcessing(floorInfoList[0]);
+    barriers = imageGridProcessor.barriers;
   }
 
   void updateCurrentFloor() {
@@ -220,11 +228,12 @@ class IndoorMapPageState extends State<IndoorMapPage> {
   void updateOptimalPath(List<int> userPosition) {
     AStarAlgorithm astarAgorithm = AStarAlgorithm();
 
+    int min = 9999999;
+    int shortestPathIndex = 0;
+
     // 사용자 위치가 유효한 경우에만 최적 경로 계산
     if (userPosition[0] != 0 && userPosition[1] != 0) {
       List<List<Point<int>>> paths = [];
-      int min = 9999999;
-      int shortestPathIndex = 0;
 
       for (int i = 0; i < floorInfoList[1].length; i++) {
         List<Point<int>> path = astarAgorithm.findOptimalRoute(
@@ -232,6 +241,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
         paths.add(path);
 
         if (path.length < min) {
+          min = path.length;
           shortestPathIndex = i;
         }
       }
@@ -342,6 +352,7 @@ class IndoorMapPageState extends State<IndoorMapPage> {
                   floorInfoList[0],
                   fit: BoxFit.cover,
                 ),
+                //CustomPaint(painter: ShowGrid(barriers: barriers)),
                 // 각 비콘의 위치와 신호 반경을 화면에 표시
                 for (var i = 0;
                     i < coordinateList.length && coordinateList.isNotEmpty;
@@ -383,6 +394,43 @@ class IndoorMapPageState extends State<IndoorMapPage> {
         ],
       ),
     );
+  }
+}
+
+class ShowGrid extends CustomPainter {
+  final List<Point<int>> barriers;
+
+  const ShowGrid({required this.barriers});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    ImageGridProcessor imageGridProcessor = ImageGridProcessor();
+
+    final barrierRectStyle = Paint()
+      ..color = Colors.black12
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < barriers.length; i++) {
+      Point<int> tempPixel = imageGridProcessor.gridToPixel(barriers[i]);
+      double squareX = tempPixel.x - imageGridProcessor.gridWidth / 2;
+      double squareY = tempPixel.y - imageGridProcessor.gridHeight / 2;
+
+      Rect barrierRect = Rect.fromLTWH(
+        squareX,
+        squareY,
+        imageGridProcessor.gridWidth.toDouble(),
+        imageGridProcessor.gridHeight.toDouble(),
+      );
+
+      canvas.drawRect(barrierRect, barrierRectStyle);
+    }
+
+    for (int i = 0; i < barriers.length; i++) {}
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
 

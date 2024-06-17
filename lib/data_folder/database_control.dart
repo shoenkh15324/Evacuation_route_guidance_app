@@ -140,12 +140,15 @@ class DatabaseHelper {
   Future<int> updateWholeBeaconDataByMac(
       String mac, Map<String, dynamic> updates) async {
     final db = await database;
-    return await db.update(
-      'beaconData',
-      updates,
-      where: 'mac = ?',
-      whereArgs: [mac],
-    );
+
+    return await db.transaction((txn) async {
+      return await txn.update(
+        'beaconData',
+        updates,
+        where: 'mac = ?',
+        whereArgs: [mac],
+      );
+    });
   }
 
   // mac주소를 받아서 해당 mac을 가진 데이터의 특정 데이터를 업데이트
@@ -256,5 +259,24 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getAllBeaconData() async {
     final db = await database;
     return await db.query('beaconData');
+  }
+
+  Future<void> transaction(
+      Future<void> Function(Transaction txn) action) async {
+    // Check if _database is null
+    if (_database == null) {
+      throw Exception('Database not initialized');
+    }
+
+    try {
+      await _database!.transaction((txn) async {
+        await action(
+            txn); // Call the action function with the Transaction object
+      });
+    } catch (e) {
+      print('Transaction failed: $e');
+      // Handle any transaction failure gracefully
+      rethrow; // Optionally rethrow to propagate the error upwards
+    }
   }
 }
