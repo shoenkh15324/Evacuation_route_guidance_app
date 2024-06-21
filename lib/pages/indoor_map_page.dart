@@ -184,7 +184,10 @@ class IndoorMapPageState extends State<IndoorMapPage> {
           tempList.add(Coordinate(
             centerX: beacon.x.toDouble(),
             centerY: beacon.y.toDouble(),
-            radius: topList[i]['info']['rssi'].toDouble(),
+            //TODO: RSSI값 조정 부분
+            //radius: topList[i]['info']['rssi'].toDouble(),
+            radius: calculateDistanceFromRssi(topList[i]['info']['rssi'])
+                .toDouble(),
             nickname: beacon.nickname,
             floor: beacon.floor,
           ));
@@ -362,9 +365,11 @@ class IndoorMapPageState extends State<IndoorMapPage> {
                       painter: BeaconCircle(
                         x: coordinateList[i].centerX.toInt(),
                         y: coordinateList[i].centerY.toInt(),
-                        // rssi: calculateDistanceFromRssi(bleController.rssiList[i]['rssi'])
-                        //     .toDouble(),
-                        rssi: topDevices[i]['info']['rssi'].toDouble(),
+                        // TODO: RSSI값 조정
+                        rssi: calculateDistanceFromRssi(
+                                bleController.beaconList[i]['info']['rssi'])
+                            .toDouble(),
+                        //rssi: topDevices[i]['info']['rssi'].toDouble(),
                         nickname: coordinateList[i].nickname,
                       ),
                     ),

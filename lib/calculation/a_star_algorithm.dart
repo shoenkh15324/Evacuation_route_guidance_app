@@ -32,7 +32,7 @@ class AStarAlgorithm {
       ).findThePath();
       return optimalRoute.toList();
     } catch (error) {
-      print('No path!');
+      //print('No path!');
       return [];
     }
   }

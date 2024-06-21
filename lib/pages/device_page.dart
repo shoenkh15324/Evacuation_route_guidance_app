@@ -30,7 +30,7 @@ class _ScanPageState extends State<DevicePage> {
 
   // 기기 정보를 수정할 때 사용하는 임시 변수들.
   String? tempNickname, tempID;
-  int? tempFloor, tempX, tempY, tempZ;
+  int? tempFloor, tempX = 0, tempY, tempZ;
 
   @override
   void initState() {
@@ -50,50 +50,65 @@ class _ScanPageState extends State<DevicePage> {
   // 사용이 끝난 리소스를 해제.
   @override
   void dispose() {
+    super.dispose();
     beaconNicknameController.dispose();
     beaconIdController.dispose();
-    super.dispose();
   }
 
   // 세팅 버튼 이벤트 핸들러.
-  void settingButtonPressed(BuildContext context, String mac) async {
-    DatabaseHelper dbHelper = DatabaseHelper.instance;
+  void settingButtonPressed(VoidCallback onDialogClose, String mac) async {
+    final dbHelper = DatabaseHelper.instance;
 
     try {
       await dbHelper.transaction((txn) async {
-        if (tempID != null) {
-          await dbHelper.updateSpecificDataByMac(mac, 'beaconID', tempID);
-          tempID = null;
-        }
-        if (tempFloor != null) {
-          await dbHelper.updateSpecificDataByMac(mac, 'floor', tempFloor);
-          tempFloor = null;
-        }
-        if (tempX != null) {
-          await dbHelper.updateSpecificDataByMac(mac, 'x', tempX);
-          tempX = null;
-        }
-        if (tempY != null) {
-          await dbHelper.updateSpecificDataByMac(mac, 'y', tempY);
-          tempY = null;
-        }
-        if (tempZ != null) {
-          await dbHelper.updateSpecificDataByMac(mac, 'z', tempZ);
-          tempZ = null;
-        }
-        if (tempNickname != null) {
-          await dbHelper.updateSpecificDataByMac(mac, 'nickname', tempNickname);
-          tempNickname = null;
+        try {
+          if (tempID != null) {
+            //print('Updating beaconId with value: $tempID');
+            await dbHelper.updateSpecificDataByMac(
+                txn, mac, 'beaconId', tempID);
+            tempID = null;
+          }
+          if (tempFloor != null) {
+            //print('Updating floor with value: $tempFloor');
+            await dbHelper.updateSpecificDataByMac(
+                txn, mac, 'floor', tempFloor);
+            tempFloor = null;
+          }
+          if (tempX != null) {
+            //print('Updating x with value: $tempX');
+            await dbHelper.updateSpecificDataByMac(txn, mac, 'x', tempX);
+            tempX = null;
+          }
+          if (tempY != null) {
+            //print('Updating y with value: $tempY');
+            await dbHelper.updateSpecificDataByMac(txn, mac, 'y', tempY);
+            tempY = null;
+          }
+          if (tempZ != null) {
+            //print('Updating z with value: $tempZ');
+            await dbHelper.updateSpecificDataByMac(txn, mac, 'z', tempZ);
+            tempZ = null;
+          }
+          if (tempNickname != null) {
+            //print('Updating nickname with value: $tempNickname');
+            await dbHelper.updateSpecificDataByMac(
+                txn, mac, 'nickname', tempNickname);
+            tempNickname = null;
+          }
+        } catch (e) {
+          //print('Error during transaction: $e');
+          rethrow; // 예외를 다시 throw하여 트랜잭션 전체가 실패하도록 함
         }
       });
 
-      // 다이얼로그 닫기.
-      Navigator.pop(context);
+      // Call the callback to close the dialog
+      onDialogClose();
 
-      // 상태 업데이트.
+      // Update the UI state
       _updateState();
     } catch (e) {
-      print('Transaction failed: $e');
+      //print('Transaction failed: $e');
+      onDialogClose();
     }
   }
 
@@ -104,13 +119,13 @@ class _ScanPageState extends State<DevicePage> {
     try {
       await dbHelper.transaction((txn) async {
         // 데이터 삭제
-        await dbHelper.deleteBeaconData(mac);
+        await dbHelper.deleteBeaconData(txn, mac);
       });
 
       // 상태 업데이트.
       _updateState();
     } catch (e) {
-      print('Transaction failed: $e');
+      //print('Transaction failed: $e');
     }
   }
 
@@ -264,7 +279,7 @@ class _ScanPageState extends State<DevicePage> {
         // X좌표를 입력받는 위젯.
         SpinBox(
           min: 0,
-          max: 1001,
+          max: 801,
           value: list['x'].toDouble(),
           decimals: 0,
           step: 1,
@@ -285,7 +300,7 @@ class _ScanPageState extends State<DevicePage> {
         // Y좌표를 입력받는 위젯.
         SpinBox(
           min: 0,
-          max: 701,
+          max: 501,
           value: list['y'].toDouble(),
           decimals: 0,
           step: 1,
@@ -327,7 +342,9 @@ class _ScanPageState extends State<DevicePage> {
         // Setting 버튼 위젯.
         TextButton(
           onPressed: () {
-            settingButtonPressed(context, list['mac']);
+            settingButtonPressed(() {
+              Navigator.pop(context);
+            }, list['mac']);
           },
           style: const ButtonStyle(
               backgroundColor: MaterialStatePropertyAll(Colors.blue)),

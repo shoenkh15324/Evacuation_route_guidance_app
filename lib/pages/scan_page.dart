@@ -55,11 +55,18 @@ class _ScanPageState extends State<ScanPage> {
   Future<void> cancelDevice(String mac) async {
     DatabaseHelper dbHelper = DatabaseHelper.instance;
 
-    int? index = await dbHelper.getIndexByMac(mac);
-    if (index != -1) {
-      dbHelper.deleteBeaconData(mac);
+    try {
+      await dbHelper.transaction((txn) async {
+        int? index = await dbHelper.getIndexByMac(mac);
+        if (index != -1) {
+          await dbHelper.deleteBeaconData(txn, mac);
+        }
+      });
+
+      _updateState();
+    } catch (e) {
+      //print('Transaction failed: $e');
     }
-    _updateState();
   }
 
   int checkEnrollState(String mac) {

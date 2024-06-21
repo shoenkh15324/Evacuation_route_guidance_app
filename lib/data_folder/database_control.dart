@@ -90,7 +90,7 @@ class DatabaseHelper {
   }
 
   // 데이터베이스 초기화
-  _initDatabase() async {
+  Future<Database> _initDatabase() async {
     // 데이터베이스 파일 경로 설정
     String path = join(await getDatabasesPath(), 'device_database.db');
 
@@ -137,52 +137,82 @@ class DatabaseHelper {
   }
 
   // 특정 MAC 주소의 데이터를 전체 업데이트
-  Future<int> updateWholeBeaconDataByMac(
-      String mac, Map<String, dynamic> updates) async {
-    final db = await database;
+  Future<void> updateWholeBeaconDataByMac(
+      Transaction txn, String mac, Map<String, dynamic> updates) async {
+    try {
+      // 업데이트 쿼리 실행
+      String updateString =
+          updates.entries.map((e) => '${e.key} = ?').join(', ');
+      List<dynamic> updateValues = updates.values.toList();
 
-    return await db.transaction((txn) async {
-      return await txn.update(
-        'beaconData',
-        updates,
-        where: 'mac = ?',
-        whereArgs: [mac],
+      // print(
+      //     'Executing update: UPDATE beaconData SET $updateString WHERE mac = $mac');
+
+      await txn.rawUpdate(
+        'UPDATE beaconData SET $updateString WHERE mac = ?',
+        [...updateValues, mac],
       );
-    });
+
+      //print('Update successful for MAC: $mac');
+    } catch (e) {
+      // print(
+      //     'Error updating whole beacon data for MAC: $mac, Updates: $updates, Error: $e');
+      rethrow;
+    }
   }
 
   // mac주소를 받아서 해당 mac을 가진 데이터의 특정 데이터를 업데이트
   Future<void> updateSpecificDataByMac(
-      String mac, String arg, dynamic value) async {
-    final dbHelper = DatabaseHelper.instance;
-    final beaconData = await dbHelper.getBeaconData(mac);
+      Transaction txn, String mac, String arg, dynamic value) async {
+    try {
+      // 트랜잭션 내에서 데이터베이스 작업 수행
+      final beaconData =
+          await txn.query('beaconData', where: 'mac = ?', whereArgs: [mac]);
 
-    if (beaconData != null) {
-      final Map<String, dynamic> updates = {};
-      switch (arg) {
-        case 'id':
-          updates['beaconId'] = value;
-          break;
-        case 'floor':
-          updates['floor'] = value;
-          break;
-        case 'x':
-          updates['x'] = value;
-          break;
-        case 'y':
-          updates['y'] = value;
-          break;
-        case 'z':
-          updates['z'] = value;
-          break;
-        case 'nickname':
-          updates['nickname'] = value;
-          break;
-        default:
-          throw ArgumentError('Invalid argument');
+      if (beaconData.isEmpty) {
+        //print('Beacon data not found for MAC: $mac');
+        return;
       }
 
-      await dbHelper.updateWholeBeaconDataByMac(mac, updates);
+      final Map<String, dynamic> updates = {};
+
+      // 업데이트 할 필드 확인
+      switch (arg) {
+        case 'beaconId':
+          if (value != null) updates['beaconId'] = value;
+          break;
+        case 'floor':
+          if (value != null) updates['floor'] = value;
+          break;
+        case 'x':
+          if (value != null) updates['x'] = value;
+          break;
+        case 'y':
+          if (value != null) updates['y'] = value;
+          break;
+        case 'z':
+          if (value != null) updates['z'] = value;
+          break;
+        case 'nickname':
+          if (value != null) updates['nickname'] = value;
+          break;
+        default:
+          throw ArgumentError('Invalid argument: $arg');
+      }
+
+      // 업데이트가 필요한 경우
+      if (updates.isNotEmpty) {
+        // print(
+        //     'Updating ${updates.keys.join(", ")} for MAC: $mac with values: ${updates.values.join(", ")}');
+        await updateWholeBeaconDataByMac(txn, mac, updates);
+        //print('Update successful for MAC: $mac');
+      } else {
+        //print('No valid updates found for MAC: $mac');
+      }
+    } catch (e) {
+      // print(
+      //     'Error updating data for MAC: $mac, Argument: $arg, Value: $value, Error: $e');
+      rethrow; // 예외를 다시 throw하여 호출한 곳에서 처리할 수 있도록 함
     }
   }
 
@@ -215,9 +245,8 @@ class DatabaseHelper {
   }
 
   // 데이터 삭제
-  Future<int> deleteBeaconData(String mac) async {
-    final db = await database;
-    return await db.delete(
+  Future<int> deleteBeaconData(Transaction txn, String mac) async {
+    return await txn.delete(
       'beaconData',
       where: 'mac=?',
       whereArgs: [mac],
@@ -263,20 +292,9 @@ class DatabaseHelper {
 
   Future<void> transaction(
       Future<void> Function(Transaction txn) action) async {
-    // Check if _database is null
-    if (_database == null) {
-      throw Exception('Database not initialized');
-    }
-
-    try {
-      await _database!.transaction((txn) async {
-        await action(
-            txn); // Call the action function with the Transaction object
-      });
-    } catch (e) {
-      print('Transaction failed: $e');
-      // Handle any transaction failure gracefully
-      rethrow; // Optionally rethrow to propagate the error upwards
-    }
+    final db = await database;
+    await db.transaction((txn) async {
+      await action(txn);
+    });
   }
 }

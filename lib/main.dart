@@ -3,12 +3,12 @@ import 'package:beacon_app/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-void main() {
+void main() async {
   // Flutter 앱을 실행하기 전, 필요한 바인딩을 초기화.
   WidgetsFlutterBinding.ensureInitialized();
 
   // 앱을 초기화.
-  initializeApp();
+  await initializeApp();
 
   // MyApp을 실행합니다.
   runApp(const MyApp());
@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-void initializeApp() async {
+Future<void> initializeApp() async {
   // 데이터베이스 헬퍼 클래스의 인스턴스 생성.
   DatabaseHelper dbHelper = DatabaseHelper.instance;
 
