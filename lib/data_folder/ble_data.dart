@@ -49,10 +49,10 @@ class BleController extends GetxController {
   Map<String, List<int>> previousRssiValues = {};
 
   // 이동 평균 필터의 윈도우 크기
-  final int windowSize = 5;
+  final int windowSize = 1000;
 
   // 스파이크를 감지하는 임계값
-  int spikeThreshold = 10;
+  int spikeThreshold = 5;
 
   // scanResultList의 변경 사항을 감지.
   BleController() {
@@ -122,7 +122,8 @@ class BleController extends GetxController {
     }
 
     int sum = rssiValues.reduce((a, b) => a + b);
-    return (sum / rssiValues.length).round();
+    int res = (sum / rssiValues.length).round();
+    return res;
   }
 
   // MAC 주소에 해당하는 기기 이름을 가져오는 함수

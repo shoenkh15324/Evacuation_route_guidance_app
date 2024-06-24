@@ -30,7 +30,7 @@ class _ScanPageState extends State<DevicePage> {
 
   // 기기 정보를 수정할 때 사용하는 임시 변수들.
   String? tempNickname, tempID;
-  int? tempFloor, tempX = 0, tempY, tempZ;
+  int? tempFloor, tempX, tempY, tempZ;
 
   @override
   void initState() {
@@ -279,7 +279,7 @@ class _ScanPageState extends State<DevicePage> {
         // X좌표를 입력받는 위젯.
         SpinBox(
           min: 0,
-          max: 801,
+          max: 831,
           value: list['x'].toDouble(),
           decimals: 0,
           step: 1,

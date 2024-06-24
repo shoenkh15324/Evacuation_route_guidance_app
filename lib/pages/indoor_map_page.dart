@@ -265,7 +265,9 @@ class IndoorMapPageState extends State<IndoorMapPage> {
   double calculateDistanceFromRssi(int rssi) {
     const int alpha = -60;
     const int constantN = 2;
-    double distance = pow(10.0, (alpha - rssi) / (10 * constantN)).toDouble();
+    const double effi = 5; // TODO: RSSI 거리 조정 계수
+    double distance =
+        effi * pow(10.0, (alpha - rssi) / (10 * constantN)).toDouble();
     return distance;
   }
 
@@ -445,7 +447,6 @@ class BeaconCircle extends CustomPainter {
   final int? y;
   final double? rssi;
   final String? nickname;
-  var coeffi = 1.3; // 반지름 확대 계수 (Default: 38)
 
   BeaconCircle({
     required this.x,
@@ -478,7 +479,7 @@ class BeaconCircle extends CustomPainter {
       ..strokeWidth = 1.1
       ..style = PaintingStyle.stroke;
 
-    canvas.drawCircle(center, radius * coeffi, circlePaint); // 원 그리기
+    canvas.drawCircle(center, radius, circlePaint); // 원 그리기
     canvas.drawPoints(PointMode.points, [center], pointPaint); // 비콘 좌표에 점 그리기
 
     // 비콘 닉네임을 텍스트로 표시
