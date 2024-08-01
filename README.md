@@ -20,3 +20,6 @@ Features:
 
 https://github.com/user-attachments/assets/edd42440-bf3f-41b4-8aa4-a08f90d4d682
 
+해당 프로젝트의 자세한 내용은 아래 링크를 통해 확인할 수 있습니다.
+
+https://available-hospital-1d8.notion.site/23a8ee4562cc43f5bc22ccacb3f5e3ff?pvs=4
