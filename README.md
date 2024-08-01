@@ -2,7 +2,7 @@
 비콘을 활용한 시각장애인용 실내 대피 경로 안내 시스템(교내 캡스톤 프로젝트)에 사용되는 앱입니다. Flutter를 사용하여 개발하였습니다.
 3개 이상의 비콘의 좌표와 RSSI 값과 삼변측량법을 이용하여 사용자의 위치를 특정한 뒤, 사용자의 위치와 미리 입력된 대피 지점까지의 최적 경로를 구하여 음성으로 안내해주는 앱입니다.
 
-![안내 앱 실행 사진](https://prod-files-secure.s3.us-west-2.amazonaws.com/d3fe9933-e5d7-4e70-a778-da0394145905/44f5270f-fd96-4393-a18e-2522e0a4e126/Untitled.png)
+![Untitled](https://github.com/user-attachments/assets/7f989265-277e-4cf9-88e3-3c8ca3740780)
 
 안내 앱 실행 사진
 
